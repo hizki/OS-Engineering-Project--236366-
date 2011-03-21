@@ -30,12 +30,6 @@ i386_init(void)
 	i386_detect_memory();
 	i386_vm_init();
 
-
-
-
-
-
-
 	// Drop into the kernel monitor.
 	while (1)
 		monitor(NULL);
