@@ -16,8 +16,14 @@
 === Q What's the purpose of leaving virtual memory region
 ===   0xeebfe000-0xeec00000 inaccessible?
 ===   (free form, up to 10 words)
+???
 
 === Q What's the value of vpd global variable?
+effbf000 , as found in obj/kern/kernel.sym.
+Also, we can see how it is calculated in entry.S:80, 
+using the formula (VPT + SRL(VPT, 10)), while
+SRL(VPT, 10) => ((VPT) >> (10)) & ~(-1 << (32 - (10))),
+and VPT = efc00000 (also found in kernel.sym).
 
 === Q Consider virtual address V=0xeffbfefc which is mapped to some
 ===   physical address P. Assume TLB is empty and kernel performs read
