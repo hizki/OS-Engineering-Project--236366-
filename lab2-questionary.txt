@@ -16,34 +16,33 @@
 === Q What's the purpose of leaving virtual memory region
 ===   0xeebfe000-0xeec00000 inaccessible?
 ===   (free form, up to 10 words)
-???
+This page is a guard against kernel stack overflow.
 
 === Q What's the value of vpd global variable?
-effbf000 , as found in obj/kern/kernel.sym.
-Also, we can see how it is calculated in entry.S:80, 
-using the formula (VPT + SRL(VPT, 10)), while
-SRL(VPT, 10) => ((VPT) >> (10)) & ~(-1 << (32 - (10))),
-and VPT = efc00000 (also found in kernel.sym).
+0xeffbf000
 
 === Q Consider virtual address V=0xeffbfefc which is mapped to some
 ===   physical address P. Assume TLB is empty and kernel performs read
 ===   from V. How many times P is accessed? Hint: V is not an arbitrary
 ===   address.
+1
 
 === Q Denote your answer to the previous question as X. Imagine that
 ===   we've asked the same question for some V2 and the answer was X2. If
 ===   it's possible that X2>X, write an example V2, otherwise, write "NO".
 ===   For example, if your previous answer is 100, for which V2 the
 ===   answer could be 101 or greater?
+Can't be done
 
 === Q What's the size (in bytes) of pp_link entry in struct Page?
+8 bytes
 
 === Q Define a segment descriptor with the following properties:
 ===   segment present in memory, spans 0x12345600-0x3579c5ff (linear)
 ===   addresses and intended to be used by application. All bits which
 ===   are not responsible for above properties are set to zero. 
 ===   (in the form WORD1 WORD2 as would be output by gdb's x/2x)
-
+0x56003456 0x1282f234
 
 === Q Define a page table entry with the following properties:
 ===   frame starts at 0x1234000. It can be written by the kernel
@@ -52,6 +51,7 @@ and VPT = efc00000 (also found in kernel.sym).
 ===   recently successfully read from it. All bits which are not
 ===   responsible for above properties are set to zero.  
 ===   (a single memory WORD as would be output by gdb's x/1x)
+0x12340025
 
 === Q Consider JOS kernel code:
 ===     mystery_t x;
@@ -60,9 +60,8 @@ and VPT = efc00000 (also found in kernel.sym).
 ===   	x = (mystery_t) value;
 ===   What type mystery_t should refer to?
 ===   (remove leading "====" from the correct answer line)
-==== uintptr_t
+uintptr_t
 ==== physaddr_t
-
 
 === Q What information is stored in page directory when i386_vm_init()
 ===   finishes? For each non-empty PD entry specify:
@@ -82,39 +81,60 @@ and VPT = efc00000 (also found in kernel.sym).
 ===    42    0x98765 "struct Segdesc gdt[]" "Global descriptor table"
 ===    50    0x00011 ""                     "boot loader code"
 
+956    0xef000000 "struct Page* pages"      "Physical pages array"
+957    0xef400000 "pde_t" 	   	    "Page directory (both kernel and user)"
+958    0xef800000 ""     	   	    "Kernel stack"
+959    0xefc00000 "pde_t"		    "Kernel page directory"
+960    0xf0000000 ""	 		    "Mapping physical memory"
+...
+1023   0xffc00000 ""			    "Mapping physical memory"
+
 === Q What is the first instruction which would be "broken" if
 ===   i386_vm_init() wouldn't remap PDE 0? (address & instruction)
+0xf01029bb: lgdtl 0xf0115350
 
 === Q Can this instruction be "fixed" (i.e. replaced by another
 ===   instruction which would produce the desired effect)?
 ===   If yes, write the "fixed" instruction, otherwise write NO.
+NO
 
 === Q Propose two ways to change i386_vm_init() (or other places) to
 ===   support JOS kernel bigger than 4MB.
 
 ===   Way 1 (free form, up to 40 words, don't need to use all 40!)
+In the code, we use this line: pgdir[0] = pgdir[PDX(KERNBASE)];, to map the
+first entry in the PD to the kernel. We can assign more pages, bitting into
+what might have been programs' memory later on.
 
 ===   Way 2 (free form, up to 40 words, don't need to use all 40!)
+???
 
 === Q Which virtual addresses are readable by the user?
 ===   (in the form ADDR1-ADDR2, if none, specify NONE)
+0xef000000-0xef031000
+0xef400000-0xef800000
 
 === Q Which virtual addresses are writable by the user?
 ===   (in the form ADDR1-ADDR2, if none, specify NONE)
+NONE
 
 === Q Assume a hacker can change N bits inside page table (on any
 ===   level, PD or PT) after it has been set up by the kernel (and
 ===   before full TLB flush). What is the minimal N to gain full
 ===   control of the system from hacker's user space process?
+1
 
 === Q What's the maximum amount of physical memory this kernel can
 ===   support? (number of megabytes, without MB suffix)
+256
 
 === Q What single constant can be changed in kernel source to make
 ===   this limit 2 times lower (if kernel normally supports 10MB,
 ===   we want to make it support only 5MB?
+KERNBASE
 
 === Q What value should this constant be changed to?
+0xf8000000
 
 === Q Assume the computer has the maximum amount of memory supported
 ===   by the (unmodified) kernel. What's the overhead of managing this
@@ -132,14 +152,39 @@ and VPT = efc00000 (also found in kernel.sym).
 ===    Format example (all the values are made up; omit the header):
 ===    SIZE  DATA-STRUCTURE         NAME/DESCRIPTION
 ===    42    "struct Segdesc gdt[]" "Global descriptor table"
+4      "physaddr_t boot_cr3"  "Page directory"
+256    ""	   	      "Page Tables"
+768    "struct Page* pages"   "pages array"
 
 ====================================================================
 === Q What challenge(s) have you chosen to implement? (specify
 ===   challenge numbers separated by spaces, if more than one)
+2
 
 === Q If the challenge requires changing the kernel source, list the
 ===   files which you have changed/added during implementation.
 ===   (one file per line, relative to lab directory containing .git/)
+kern/pmap.h
+kern/monitor.h
+kern/monitor.c
 
 === Q Describe you solution.
 ===   (free form, up to 500 words, don't need to use all 500!)
+In pmap.h I added two functions: str2pagepri() and pagepri2str().
+Those two functions will help create the strings representing the permissions
+later on.
+In monitor.c:
+- show_mapping, after parsing and checking input correctness, will go over all 
+the addresses in the specified range and perform a page_lookup. If no page is
+found, we'll print "No mappings". Otherwise the relevant information will
+be displayed.
+We make sure the addresses representing the range and multiples of PGSIZE.
+- set_pagepriority goes over all the parameters, the first one is the address,
+and the rest are either of the form "-xxx" or "+xxx", while x's are flags to 
+add or remove.
+we send the part after the -/+ sign by buffer to str2pagepri() to change the
+permissions.
+after the changes are made we print the previous and current state of the address.
+- dump. Here we use i386_detect_memory() to get maxpa, which we need to check
+we didn't go over the memory boundaries.
+The rest, as are the two previous functions, is fairly simple.
