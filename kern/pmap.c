@@ -185,6 +185,8 @@ i386_vm_init(void)
 	// array.  'npage' is the number of physical pages in memory.
 	// User-level programs will get read-only access to the array as well.
 	pages = boot_alloc(npage * sizeof(struct Page), PGSIZE);
+	//FIXME:
+	memset(pages, 0, sizeof(struct Page)*npage);
 
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
@@ -210,9 +212,12 @@ i386_vm_init(void)
 	//    - the new image at UPAGES -- kernel R, user R
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
-	// TODO: Check permissions correctness.
 	boot_map_segment(pgdir, UPAGES, ROUNDUP(npage * sizeof(struct Page), PGSIZE),
-		PADDR(pages), PTE_U|PTE_P);
+		PADDR(pages), PTE_U | PTE_P);
+
+	//FIXME:	
+	boot_map_segment(pgdir, (uintptr_t)pages, ROUNDUP(npage * sizeof(struct Page), PGSIZE),
+		PADDR(pages), PTE_W | PTE_P);
 
 	//////////////////////////////////////////////////////////////////////
 	// Map the 'envs' array read-only by the user at linear address UENVS
@@ -260,7 +265,10 @@ i386_vm_init(void)
 	// We might not have 2^32 - KERNBASE bytes of physical memory, but
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
-	boot_map_segment(pgdir, KERNBASE, 0x0fffffff + 1, 0, PTE_W|PTE_P);
+	boot_map_segment(pgdir, KERNBASE, 0x0FFFFFFF + 1, 0, PTE_W|PTE_P);
+	//TODO: Check which one is correct.
+	boot_map_segment(pgdir, KERNBASE, 0xFFFFFFFF - KERNBASE /*=0x0FFFFFFF */, (physaddr_t)0x0, PTE_W | PTE_P);
+
 
 	// Check that the initial page directory has been set up correctly.
 	check_boot_pgdir();
@@ -494,14 +502,15 @@ page_init(void)
 	int i;
 	LIST_INIT(&page_free_list);
 	for (i = 0; i < npage; i++) {
-		// Physical page 0 as in use.		
+		// Physical page 0 as in use (TODO: Why?).		
 		if (i == 0) 
 			continue;
-		// At IOPHYSMEM (640K) there is a 384K hole for I/O.
-		if (i >= IOPHYSMEM/PGSIZE && i < EXTPHYSMEM/PGSIZE)
+		// At IOPHYSMEM (640K) there is a 384K hole for I/O, ending at EXTPHYSMEM.
+		if (i >= IOPHYSMEM / PGSIZE && i < EXTPHYSMEM / PGSIZE)
 			continue;
 		// Memory taken until now by data structures.
-		if (i >= PADDR(KERNBASE)/PGSIZE  && i < ROUNDUP(PADDR(boot_freemem),PGSIZE)/PGSIZE)
+		if (i >= PADDR(KERNBASE) / PGSIZE && i < 
+				ROUNDUP(PADDR(boot_freemem), PGSIZE) / PGSIZE)
 			continue;
 		pages[i].pp_ref = 0;
 		LIST_INSERT_HEAD(&page_free_list, &pages[i], pp_link);
@@ -536,8 +545,11 @@ page_initpp(struct Page *pp)
 int
 page_alloc(struct Page **pp_store)
 {
+	// First, check if there are any free pages to allocate.
 	if (LIST_EMPTY(&page_free_list))
 		return -E_NO_MEM;
+	
+	// If there is one, put it in *pp_store and remove if from the free_list.
 	*pp_store = LIST_FIRST(&page_free_list);
 	LIST_REMOVE(*pp_store, pp_link);
 	return 0;
@@ -604,7 +616,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 		// Set reference count to 1.
 		p->pp_ref++;
 		
-		// Clear the page table
+		// Clear the page table (zero it).
 		memset(KADDR(page2pa(p)), 0, PGSIZE);
 
 		// Set the pde to the newly created page table.
