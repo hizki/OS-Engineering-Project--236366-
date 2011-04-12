@@ -185,12 +185,13 @@ i386_vm_init(void)
 	// array.  'npage' is the number of physical pages in memory.
 	// User-level programs will get read-only access to the array as well.
 	pages = boot_alloc(npage * sizeof(struct Page), PGSIZE);
-	//FIXME:
 	memset(pages, 0, sizeof(struct Page)*npage);
 
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
-	// LAB 3: Your code here.
+	// LAB 3: 
+	envs = boot_alloc(sizeof(struct Env)*NENV, PGSIZE);
+	memset(envs, 0, sizeof(struct Env) * NENV);
 
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
@@ -215,7 +216,7 @@ i386_vm_init(void)
 	boot_map_segment(pgdir, UPAGES, ROUNDUP(npage * sizeof(struct Page), PGSIZE),
 		PADDR(pages), PTE_U | PTE_P);
 
-	//FIXME:	
+	// TODO: Is this needed?
 	boot_map_segment(pgdir, (uintptr_t)pages, ROUNDUP(npage * sizeof(struct Page), PGSIZE),
 		PADDR(pages), PTE_W | PTE_P);
 
@@ -794,7 +795,26 @@ static uintptr_t user_mem_check_addr;
 int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
-	// LAB 3: Your code here. 
+	// LAB 3: 
+	uintptr_t sva = (uintptr_t) va;
+	uintptr_t eva = sva + len;
+
+	uintptr_t svp = PPN(sva) << PGSHIFT;
+	uintptr_t evp = PPN(eva) <<PGSHIFT;
+
+	for (; svp <= evp; svp += PGSIZE) {
+		pte_t *ppte = pgdir_walk(env->env_pgdir, (void *) svp, 0);
+
+		if ((ppte != NULL) && ((*ppte & (perm | PTE_P)) == (perm | PTE_P)))
+			continue;
+		else {
+			if (svp < sva)
+				user_mem_check_addr = sva;
+			else
+				user_mem_check_addr = svp;
+			return -E_FAULT;
+		}
+	}
 
 	return 0;
 }

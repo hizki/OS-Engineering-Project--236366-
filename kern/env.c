@@ -122,7 +122,16 @@ env_setup_vm(struct Env *e)
 	//	pp_ref for env_free to work correctly.
 	//    - The functions in kern/pmap.h are handy.
 
-	// LAB 3: Your code here.
+	// LAB 3:
+	e->env_pgdir = page2kva(p);
+	e->env_cr3 = PADDR(e->env_pgdir);
+	memset(e->env_pgdir, 0, PGSIZE);
+	p->pp_ref++;
+
+	// Using the boot_pgdir as a template to initialize the pgdir element.
+	for (i = PDX(UTOP); i < PGSIZE ; i++) {
+		e->env_pgdir[i] = boot_pgdir[i];
+	}	
 
 	// VPT and UVPT map the env's own page table, with
 	// different permissions.
@@ -201,12 +210,27 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 static void
 segment_alloc(struct Env *e, void *va, size_t len)
 {
-	// LAB 3: Your code here.
+	// LAB 3:
 	// (But only if you need it for load_icode.)
 	//
 	// Hint: It is easier to use segment_alloc if the caller can pass
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round len up.
+
+	struct Page *ppage;
+
+	int i;
+	for (i = 0;i < ROUNDUP(len, PGSIZE); i += PGSIZE) {
+		if (page_alloc(&ppage) == -E_NO_MEM) {
+			panic("Segment alloc failed: No memory");
+		}
+		int error;
+		error = page_insert(e->env_pgdir, ppage, ROUNDDOWN(va, PGSIZE)+i, 
+				PTE_U | PTE_W | PTE_P);
+		if (error != 0) {
+			panic("Segment alloc faild: %e", error);
+		}
+	}
 }
 
 //
@@ -262,12 +286,37 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
 	//  to make sure that the environment starts executing there.
 	//  What?  (See env_run() and env_pop_tf() below.)
 
-	// LAB 3: Your code here.
+	// LAB 3:
+	struct Proghdr *ph, *end_ph;
+	ph = (struct Proghdr *) (binary + ((struct Elf *)binary)->e_phoff);
+
+	// TODO: Any other things to check for?
+	if (! ph->p_filesz > ph->p_memsz) {
+		panic("The Elf tried to load a file lager than the dedicated memory.");
+	}
+	end_ph = ph + ((struct Elf *)binary)->e_phnum;
+	lcr3(e->env_cr3);
+	while (ph < end_ph) {
+		if (ph->p_type == ELF_PROG_LOAD) {
+
+			// Note: segment_alloc will panic if it fails...
+			segment_alloc(e, (void *)ph->p_va, ph->p_memsz);
+			memmove((void *)ph->p_va, binary + ph->p_offset, ph->p_filesz);
+			memset((void *)(ph->p_va + ph->p_filesz), 0, ph->p_memsz - ph->p_filesz);
+		}
+		ph++;
+		
+	}
+
+	e->env_tf.tf_eip = ((struct Elf *)binary)->e_entry;
 
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
-
-	// LAB 3: Your code here.
+	// LAB 3:
+ 	struct Page *user_stack;
+	if (page_alloc(&user_stack) == -E_NO_MEM)
+		panic("load_icode: User stack not allocated. Not enough memory");
+	page_insert(e->env_pgdir, user_stack, (void *)(USTACKTOP - PGSIZE), PTE_U | PTE_W | PTE_P);
 }
 
 //
@@ -280,7 +329,13 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
 void
 env_create(uint8_t *binary, size_t size)
 {
-	// LAB 3: Your code here.
+	// LAB 3: 
+	int error;
+	struct Env * newenv;
+	error = env_alloc(&newenv, 0);
+	if (error < 0)
+		panic("env_create: Failure - %e", error);
+	load_icode(newenv, binary, size);
 }
 
 //
@@ -391,8 +446,11 @@ env_run(struct Env *e)
 	//	and make sure you have set the relevant parts of
 	//	e->env_tf to sensible values.
 	
-	// LAB 3: Your code here.
-
-	panic("env_run not yet implemented");
+	// LAB 3: 
+	// TODO: Need to check for context switch before `curenv  = e`?
+	curenv  = e;
+	curenv->env_runs++;
+	lcr3(curenv->env_cr3);
+	env_pop_tf(&(e->env_tf));
 }
 

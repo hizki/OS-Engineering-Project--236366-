@@ -38,7 +38,9 @@ static struct Command commands[] = {
 		 virtual or physical address range. ", dump },
 	{ "priority", "Explicitly set, clear, or change the permissions of\n \
 		any mapping in the current address space. \n \
-		you can add (+) or remove (-) the flags p, u and w", set_pagepriority }
+		you can add (+) or remove (-) the flags p, u and w", set_pagepriority },
+	{ "s", "Debugger step.", step},
+	{ "c", "Debugge continue", cont}
 };
 
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
@@ -170,7 +172,10 @@ read_eip()
 	return callerpc;
 }
 
-// Challege 2:
+
+// =====================
+// Exercise 2 Challege 2:
+
 int
 show_mapping(int argc, char **argv, struct Trapframe *tf)
 {
@@ -362,5 +367,37 @@ ERR:
 	return 0;
 }
 
+// ---------------------
 
-// -----------
+// =====================
+// Exercise 3 Challege 2:
+
+int step(int argc, char **argv, struct Trapframe *tf)
+{
+	char *endptr;	
+	if (tf == NULL)
+		return 0;
+
+	if (argc == 1)
+	{
+		tf->tf_eflags |= 0x100;
+	}
+	else goto ERR;
+
+	return -1;
+
+ERR:
+	cprintf("Wrong parameters!\n");
+	return 0;
+}
+
+int cont(int argc, char **argv, struct Trapframe *tf)
+{
+	if (tf == NULL )
+		return 0;
+	tf->tf_eflags &= ~0x100;
+	return -1;
+}
+
+// ---------------------
+
