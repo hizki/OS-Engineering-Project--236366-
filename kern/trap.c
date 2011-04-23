@@ -12,6 +12,8 @@
 #include <kern/kclock.h>
 #include <kern/picirq.h>
 
+#define XVTRAP(num) (extern void trap_inter ## num();)
+
 static struct Taskstate ts;
 
 /* Interrupt descriptor table.  (Must be built at run time because
@@ -63,7 +65,54 @@ idt_init(void)
 {
 	extern struct Segdesc gdt[];
 	
-	// LAB 3: Your code here.
+	// LAB 3:
+	// See matching TRAPHANDLERs defined in trapentry.S .
+	// The comment out TRAPHANDLERs are reserved. See inc/trap.h .
+	extern void trap_divide();
+	extern void trap_debug();
+	extern void trap_nmi();
+	extern void trap_brkpt();
+	extern void trap_oflow();
+	extern void trap_bound();
+	extern void trap_illop();
+	extern void trap_device();
+	extern void trap_dblflt();
+	// extern void trap_coproc();
+	extern void trap_tss();
+	extern void trap_segnp();
+	extern void trap_stack();
+	extern void trap_gpflt();
+	extern void trap_pgflt();
+	// extern void trap_res();
+	extern void trap_fperr();
+	extern void trap_align();
+	extern void trap_mchk();
+	extern void trap_simderr();
+	extern void trap_syscall();
+
+	SETGATE(idt[T_DIVIDE], 1, GD_KT, trap_divide, 0);
+	SETGATE(idt[T_DEBUG], 1, GD_KT, trap_debug, 0);
+	SETGATE(idt[T_NMI], 0, GD_KT, trap_nmi, 0);
+	SETGATE(idt[T_BRKPT], 1, GD_KT, trap_brkpt, 3);
+	SETGATE(idt[T_OFLOW], 1, GD_KT, trap_oflow, 3);
+	SETGATE(idt[T_BOUND], 1, GD_KT, trap_bound, 3);
+	SETGATE(idt[T_ILLOP], 1, GD_KT, trap_illop, 3);
+	SETGATE(idt[T_DEVICE], 1, GD_KT, trap_device, 3);
+	SETGATE(idt[T_DBLFLT], 1, GD_KT, trap_dblflt, 3);
+	// SETGATE(idt[T_COPROC], 0, GD_KT, trap_coproc, 0);
+	SETGATE(idt[T_TSS], 1, GD_KT, trap_tss, 3);
+	SETGATE(idt[T_SEGNP], 1, GD_KT, trap_segnp, 3);
+	SETGATE(idt[T_STACK], 1, GD_KT, trap_stack, 3);
+	SETGATE(idt[T_GPFLT], 1, GD_KT, trap_gpflt, 3);
+	SETGATE(idt[T_PGFLT], 1, GD_KT, trap_pgflt, 0);
+	// SETGATE(idt[T_RES], 0, GD_KT, trap_res, 0);
+	SETGATE(idt[T_FPERR], 1, GD_KT, trap_fperr, 3);
+	SETGATE(idt[T_ALIGN], 1, GD_KT, trap_align, 3);
+	SETGATE(idt[T_MCHK], 1, GD_KT, trap_mchk, 3);
+	SETGATE(idt[T_SIMDERR], 1, GD_KT, trap_simderr, 3);
+
+	// Initial system call entry
+	SETGATE(idt[T_SYSCALL], 1, GD_KT, trap_syscall, 3);
 
 	// Setup a TSS so that we get the right stack
 	// when we trap to the kernel.
@@ -110,12 +159,25 @@ print_regs(struct PushRegs *regs)
 	cprintf("  ecx  0x%08x\n", regs->reg_ecx);
 	cprintf("  eax  0x%08x\n", regs->reg_eax);
 }
-
 static void
 trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
-	// LAB 3: Your code here.
+	// LAB 3:
+	switch (tf->tf_trapno) {
+	case T_PGFLT:
+		page_fault_handler(tf);
+		return;
+	case T_BRKPT:
+		monitor(tf);
+		return;
+	case T_SYSCALL:
+		tf->tf_regs.reg_eax = syscall(tf->tf_regs.reg_eax, 
+			tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx, 
+			tf->tf_regs.reg_ebx, tf->tf_regs.reg_edi, 
+			tf->tf_regs.reg_esi);
+		return;
+	}
 	
 	// Handle clock interrupts.
 	// LAB 4: Your code here.
@@ -128,7 +190,6 @@ trap_dispatch(struct Trapframe *tf)
 		print_trapframe(tf);
 		return;
 	}
-
 
 	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
@@ -186,7 +247,9 @@ page_fault_handler(struct Trapframe *tf)
 
 	// Handle kernel-mode page faults.
 	
-	// LAB 3: Your code here.
+	// LAB 3:
+	if (tf->tf_cs == 0x8) 
+		panic("page_fault_handler: page fault happened in kernel mode");
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.

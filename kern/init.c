@@ -28,6 +28,8 @@ i386_init(void)
 	// Can't call cprintf until after we do this!
 	cons_init();
 
+	cprintf("%x\n\n", 0xefc00000 + (((0xefc00000) >> (10)) & ~(-1 << (32 - (10)))) );
+
 	cprintf("6828 decimal is %o octal!\n", 6828);
 
 	// Lab 2 memory management initialization functions
@@ -57,7 +59,9 @@ i386_init(void)
 	// Schedule and run the first user environment!
 	sched_yield();
 
-
+	// Drop into the kernel monitor.
+	while (1)
+		monitor(NULL);
 }
 
 
