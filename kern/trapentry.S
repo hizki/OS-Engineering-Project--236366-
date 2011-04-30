@@ -4,7 +4,6 @@
 #include <inc/memlayout.h>
 #include <inc/trap.h>
 
-#include <kern/picirq.h>
 
 
 ###################################################################
@@ -39,10 +38,10 @@
 .text
 
 /*
- * Lab 3: Code for generating entry points for the different traps.
+ * Lab 3: Your code here for generating entry points for the different traps.
  */
 
-// The comment out TRAPHANDLERs are reserved. See inc/trap.h
+// IDT entry part
 	TRAPHANDLER_NOEC(trap_divide, T_DIVIDE); 
 	TRAPHANDLER_NOEC(trap_debug, T_DEBUG);
 	TRAPHANDLER_NOEC(trap_nmi, T_NMI);	
@@ -52,42 +51,46 @@
 	TRAPHANDLER_NOEC(trap_illop, T_ILLOP);
 	TRAPHANDLER_NOEC(trap_device, T_DEVICE);
 	TRAPHANDLER(trap_dblflt, T_DBLFLT);
-	// TRAPHANDLER_NOEC(trap_coproc, T_DBLFLT);
+	//TRAPHANDLER_NOEC(trap_coproc, T_DBLFLT);	//Reserved in inc/trap.h, so skip it in kern/trap.c
 	TRAPHANDLER(trap_tss, T_TSS);
 	TRAPHANDLER(trap_segnp, T_SEGNP);
 	TRAPHANDLER(trap_stack, T_STACK);
 	TRAPHANDLER(trap_gpflt, T_GPFLT);
 	TRAPHANDLER(trap_pgflt, T_PGFLT);
-	// TRAPHANDLER_NOEC(trap_res, T_PGFLT);
+	//TRAPHANDLER_NOEC(trap_res, T_PGFLT);   //Reserved in inc/trap.h, so skip it in kern/trap.c
 	TRAPHANDLER_NOEC(trap_fperr, T_FPERR);
 	TRAPHANDLER_NOEC(trap_align, T_ALIGN);
 	TRAPHANDLER_NOEC(trap_mchk, T_MCHK);
 	TRAPHANDLER_NOEC(trap_simderr, T_SIMDERR);
+
 	TRAPHANDLER_NOEC(trap_syscall, T_SYSCALL);
 
 /*
- * Lab 3: Code for _alltraps
+ * Lab 3: Your code here for _alltraps
  */
-
 _alltraps:
-	// Push values to make the stack look like a struct Trapframe
+	//Push values to make the stack look like a struct Trapframe
 	pushl %ds;
 	pushl %es;
 	pushal;
+	//cli;
 
-	// Load GD_KD into %ds and %es
+	//Load GD_KD into %ds and %es
 	movw $GD_KD, %ax;
 	movw %ax, %ds;
 	movw %ax, %es;
 
-	// pushl %esp to pass a pointer to the Trapframe as an argument to trap()
+	//pushl %esp to pass a pointer to the Trapframe as an argument to trap()
 	pushl %esp;
+
+	//call trap
 	call trap;
 
-	// Pop the values pushed in step 1-3
+	//pop the values pushed in step 1-3
 	popal;
 	popl %es;
 	popl %ds;
 
+	//iret
 	iret
-
+	

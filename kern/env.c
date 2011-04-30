@@ -130,7 +130,7 @@ env_setup_vm(struct Env *e)
 	p->pp_ref++;
 
 	// Using the boot_pgdir as a template to initialize the pgdir element.
-	for (i = PDX(UTOP); i < PGSIZE ; i++) {
+	for (i = PDX(UTOP); i < NPDENTRIES ; i++) {
 		e->env_pgdir[i] = boot_pgdir[i];
 	}	
 

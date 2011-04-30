@@ -290,12 +290,12 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return ret;
 
 	// LAB 4:
-/*	case SYS_yield:
+	case SYS_yield:
 		sys_yield();
 		return 0;
-*/
+
 	default:
-		return -E_INVAL;
+		panic("syscall %d not implemented", syscallno);		panic("blabla");
 	}
 
 }
