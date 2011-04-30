@@ -283,17 +283,11 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		ret = (int32_t) sys_cgetc();
 		return ret;
 	case SYS_getenvid:
-		ret = (int32_t) sys_getenvid();
+		ret =  (int32_t) sys_getenvid();
 		return ret;
 	case SYS_env_destroy:
-		ret = (int32_t) sys_env_destroy((envid_t) a1);
+		ret =  (int32_t) sys_env_destroy((envid_t) a1);
 		return ret;
-
-	// LAB 4:
-/*	case SYS_yield:
-		sys_yield();
-		return 0;
-*/
 	default:
 		return -E_INVAL;
 	}
