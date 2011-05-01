@@ -38,7 +38,7 @@
 .text
 
 /*
- * Lab 3: Your code here for generating entry points for the different traps.
+ * Lab 3:
  */
 
 // IDT entry part
@@ -66,16 +66,16 @@
 	TRAPHANDLER_NOEC(trap_syscall, T_SYSCALL);
 
 /*
- * Lab 3: Your code here for _alltraps
+ * Lab 3:
  */
 _alltraps:
-	//Push values to make the stack look like a struct Trapframe
+	// Push values to make the stack look like a struct Trapframe
 	pushl %ds;
 	pushl %es;
 	pushal;
 	//cli;
 
-	//Load GD_KD into %ds and %es
+	// Load GD_KD into %ds and %es
 	movw $GD_KD, %ax;
 	movw %ax, %ds;
 	movw %ax, %es;
@@ -83,7 +83,6 @@ _alltraps:
 	//pushl %esp to pass a pointer to the Trapframe as an argument to trap()
 	pushl %esp;
 
-	//call trap
 	call trap;
 
 	//pop the values pushed in step 1-3
@@ -91,6 +90,5 @@ _alltraps:
 	popl %es;
 	popl %ds;
 
-	//iret
 	iret
 	
