@@ -120,8 +120,20 @@ sys_env_set_status(envid_t envid, int status)
 	// check whether the current environment has permission to set
 	// envid's status.
 
-	// LAB 4: Your code here.
-	panic("sys_env_set_status not implemented");
+	// LAB 4: 
+	// TODO IMPROV: changing the order of checks might improve performance.
+	struct Env* env;
+	int errno;	
+	errno = envid2env(envid, &env, 1);
+	if (errno < 0)
+		return errno;
+
+	if (status != ENV_RUNNABLE && status != ENV_NOT_RUNNABLE)
+		return -E_INVAL;
+
+	env->env_status = status;
+	
+	return 0;
 }
 
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
@@ -312,7 +324,7 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 
 	default:
 		panic("syscall %d not implemented", syscallno);
-		return -E_INVAL
+		return -E_INVAL;
 	}
 
 }
