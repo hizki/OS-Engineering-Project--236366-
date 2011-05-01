@@ -84,8 +84,24 @@ sys_exofork(void)
 	// from the current environment -- but tweaked so sys_exofork
 	// will appear to return 0.
 
-	// LAB 4: Your code here.
-	panic("sys_exofork not implemented");
+	// LAB 4:
+	int errno;	
+	struct Env* child;
+
+	errno = env_alloc(&child, curenv->env_id);
+	if (errno < 0)
+		return errno;
+	
+	// ...status is set to ENV_NOT_RUNNABLE
+	child->env_status = ENV_NOT_RUNNABLE;
+
+	// ...the register set is copied from the current environment
+	child->env_tf = curenv->env_tf;
+
+	// ...but tweaked so sys_exofork will appear to return 0.
+	child->env_tf.tf_regs.reg_eax = 0;
+	
+	return child->env_id;
 }
 
 // Set envid's env_status to status, which must be ENV_RUNNABLE
@@ -295,7 +311,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return 0;
 
 	default:
-		panic("syscall %d not implemented", syscallno);		panic("blabla");
+		panic("syscall %d not implemented", syscallno);
+		return -E_INVAL
 	}
 
 }
