@@ -19,7 +19,7 @@ sched_yield(void)
 	// unless NOTHING else is runnable.
 
 	// LAB 4:
-	int prev_env = 0;
+	static int prev_env = 0;
 	int i;
 	int new_env = 0;
 	for (i = 1; i < NENV; i++) {
