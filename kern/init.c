@@ -53,6 +53,8 @@ i386_init(void)
 #else
 	// Touch all you want.
 	ENV_CREATE(user_yield);
+	ENV_CREATE(user_yield);
+	ENV_CREATE(user_yield);
 #endif // TEST*
 
 
