@@ -338,8 +338,7 @@ sys_page_unmap(envid_t envid, void *va)
 	if ((uintptr_t)va >= UTOP || (uint32_t)va % PGSIZE != 0)
 		return -E_INVAL;
 
-
-	page_remove(pde_t *pgdir, void *va);
+	page_remove(env->env_pgdir, va);
 
 	return 0;
 }
