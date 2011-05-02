@@ -204,7 +204,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 			panic("unexpected error %d", errno);	
 	}
 
-	if ((uintptr_t)va >= UTOP || (uintptr_t)va % PGSIZE != (uintptr_t)va)
+	if ((uintptr_t)va >= UTOP || (uint32_t)va % PGSIZE != 0)
 		return -E_INVAL;
 
 	// TODO: More permission checks needed?
@@ -260,9 +260,51 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	//   check the current permissions on the page.
 
 	// LAB 4:
+	struct Env* srcenv;
+	struct Env* dstenv;
+	int errno;				
+	errno = envid2env(srcenvid, &srcenv, 1);	
+	if (errno < 0) {
+		if (errno == -E_BAD_ENV)
+			return errno;			
+		else
+			panic("unexpected error %d", errno);	
+	}
+
+	errno = envid2env(dstenvid, &dstenv, 1);	
+	if (errno < 0) {
+		if (errno == -E_BAD_ENV)
+			return errno;			
+		else
+			panic("unexpected error %d", errno);	
+	}
+
+	if ((uintptr_t)srcva >= UTOP || (uint32_t)srcva % PGSIZE != 0 ||
+			(uintptr_t)dstva >= UTOP || (uint32_t)dstva % PGSIZE != 0)
+		return -E_INVAL;
+
+	// TODO: More permission checks needed?
+	if ((perm | PTE_U | PTE_P) != perm)
+		return -E_INVAL;
+
+
+	struct Page* pp;
+	pte_t * pte_ptr;
+	pp = page_lookup(srcenv->env_pgdir, srcva, &pte_ptr);
+
+	if (pp == 0 || (perm | PTE_W) != perm || (*pte_ptr | PTE_W) != *pte_ptr)
+		return -E_INVAL;
+
+	errno = page_insert(dstenv->env_pgdir, pp, dstva, perm);
+	if (errno < 0) {
+		if (errno == -E_NO_MEM) {
+			page_free(pp);
+			return errno;	
+		}	
+		else
+			panic("unexpected error %d", errno);	
+	}
 	
-	
-	panic("sys_page_map not implemented");
 }
 
 // Unmap the page of memory at 'va' in the address space of 'envid'.
