@@ -12,14 +12,12 @@
 #include <kern/console.h>
 #include <kern/sched.h>
 
-// Call envid2env and put the requested enviorment in env. In case of error,
-// return it.
-#define ENVID2ENV(env)	{			\
-	int errno;				\
-	errno = envid2env(envid, &env, 1);	\
-	if (errno < 0)				\
-		return errno;			\
-}
+	int errno;
+	errno = envid2env(envid, &env, 1);
+	if (errno == -E_BAD_ENV)
+		return errno;
+	panic("unexpected error %d", errno);
+
 
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
@@ -132,7 +130,11 @@ sys_env_set_status(envid_t envid, int status)
 	// LAB 4: 
 	// TODO IMPROV: changing the order of checks might improve performance.
 	struct Env* env;
-	ENVID2ENV(env);
+	int errno;
+	errno = envid2env(envid, &env, 1);
+	if (errno == -E_BAD_ENV)
+		return errno;
+	panic("unexpected error %d", errn
 
 	if (status != ENV_RUNNABLE && status != ENV_NOT_RUNNABLE)
 		return -E_INVAL;
@@ -155,7 +157,11 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 {
 	// LAB 4:
 /*	struct Env* env;
-	ENVID2ENV(env);
+	int errno;
+	errno = envid2env(envid, &env, 1);
+	if (errno == -E_BAD_ENV)
+		return errno;
+	panic("unexpected error %d", errn
 	
 	env->env_pgfault_upcall = func
 */	
@@ -190,7 +196,38 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 
 	// LAB 4:
 	struct Env* env;
-	ENVID2ENV(env);
+	int errno;				
+	errno = envid2env(envid, &env, 1);	
+	if (errno < 0) {
+		if (errno == -E_BAD_ENV)
+			return errno;			
+		else
+			panic("unexpected error %d", errno);	
+	}
+
+	if ((uintptr_t)va >= UTOP || (uintptr_t)va % PGSIZE != (uintptr_t)va)
+		return -E_INVAL;
+
+	// TODO: More permission checks needed?
+	if ((perm | PTE_U | PTE_P) != perm)
+		return -E_INVAL;
+
+	struct Page* pp;
+	errno = page_alloc(&pp);
+	if (errno < 0) {
+		if (errno == -E_NO_MEM)
+			return errno;			
+		else
+			panic("unexpected error %d", errno);	
+	}
+
+	errno = page_insert(env->env_pgdir, pp, va, perm);
+	if (errno < 0) {
+		if (errno == -E_NO_MEM)
+			return errno;			
+		else
+			panic("unexpected error %d", errno);	
+	}
 
 //	panic("sys_page_alloc not implemented");
 }
