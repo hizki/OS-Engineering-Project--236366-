@@ -163,6 +163,8 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 	}
 	
 	env->env_pgfault_upcall = func
+
+	return 0;
 */	
 	panic("sys_env_set_pgfault_upcall not implemented");
 }
@@ -229,7 +231,8 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 		else
 			panic("unexpected error %d", errno);	
 	}
-
+	
+	return 0;
 }
 
 // Map the page of memory at 'srcva' in srcenvid's address space
@@ -304,6 +307,8 @@ sys_page_map(envid_t srcenvid, void *srcva,
 		else
 			panic("unexpected error %d", errno);	
 	}
+
+	return 0;
 	
 }
 
@@ -319,8 +324,24 @@ sys_page_unmap(envid_t envid, void *va)
 {
 	// Hint: This function is a wrapper around page_remove().
 
-	// LAB 4: Your code here.
-	panic("sys_page_unmap not implemented");
+	// LAB 4:
+	struct Env* env;
+	int errno;				
+	errno = envid2env(envid, &env, 1);	
+	if (errno < 0) {
+		if (errno == -E_BAD_ENV)
+			return errno;			
+		else
+			panic("unexpected error %d", errno);	
+	}
+
+	if ((uintptr_t)va >= UTOP || (uint32_t)va % PGSIZE != 0)
+		return -E_INVAL;
+
+
+	page_remove(pde_t *pgdir, void *va);
+
+	return 0;
 }
 
 // Try to send 'value' to the target env 'envid'.
