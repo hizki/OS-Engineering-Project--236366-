@@ -12,13 +12,6 @@
 #include <kern/console.h>
 #include <kern/sched.h>
 
-	int errno;
-	errno = envid2env(envid, &env, 1);
-	if (errno == -E_BAD_ENV)
-		return errno;
-	panic("unexpected error %d", errno);
-
-
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
 // Destroys the environment on memory errors.
@@ -132,9 +125,12 @@ sys_env_set_status(envid_t envid, int status)
 	struct Env* env;
 	int errno;
 	errno = envid2env(envid, &env, 1);
-	if (errno == -E_BAD_ENV)
-		return errno;
-	panic("unexpected error %d", errn
+	if (errno < 0) {
+		if (errno == -E_BAD_ENV)
+			return errno;			
+		else
+			panic("unexpected error %d", errno);	
+	}
 
 	if (status != ENV_RUNNABLE && status != ENV_NOT_RUNNABLE)
 		return -E_INVAL;
@@ -159,9 +155,12 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 /*	struct Env* env;
 	int errno;
 	errno = envid2env(envid, &env, 1);
-	if (errno == -E_BAD_ENV)
-		return errno;
-	panic("unexpected error %d", errn
+	if (errno < 0) {
+		if (errno == -E_BAD_ENV)
+			return errno;			
+		else
+			panic("unexpected error %d", errno);	
+	}
 	
 	env->env_pgfault_upcall = func
 */	
@@ -216,20 +215,21 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	errno = page_alloc(&pp);
 	if (errno < 0) {
 		if (errno == -E_NO_MEM)
-			return errno;			
+			return errno;
 		else
 			panic("unexpected error %d", errno);	
 	}
 
 	errno = page_insert(env->env_pgdir, pp, va, perm);
 	if (errno < 0) {
-		if (errno == -E_NO_MEM)
-			return errno;			
+		if (errno == -E_NO_MEM) {
+			page_free(pp);
+			return errno;	
+		}	
 		else
 			panic("unexpected error %d", errno);	
 	}
 
-//	panic("sys_page_alloc not implemented");
 }
 
 // Map the page of memory at 'srcva' in srcenvid's address space
@@ -259,7 +259,9 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	//   Use the third argument to page_lookup() to
 	//   check the current permissions on the page.
 
-	// LAB 4: Your code here.
+	// LAB 4:
+	
+	
 	panic("sys_page_map not implemented");
 }
 
