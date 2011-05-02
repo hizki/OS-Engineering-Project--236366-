@@ -12,6 +12,15 @@
 #include <kern/console.h>
 #include <kern/sched.h>
 
+// Call envid2env and put the requested enviorment in env. In case of error,
+// return it.
+#define ENVID2ENV(env)	{			\
+	int errno;				\
+	errno = envid2env(envid, &env, 1);	\
+	if (errno < 0)				\
+		return errno;			\
+}
+
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
 // Destroys the environment on memory errors.
@@ -123,10 +132,7 @@ sys_env_set_status(envid_t envid, int status)
 	// LAB 4: 
 	// TODO IMPROV: changing the order of checks might improve performance.
 	struct Env* env;
-	int errno;	
-	errno = envid2env(envid, &env, 1);
-	if (errno < 0)
-		return errno;
+	ENVID2ENV(env);
 
 	if (status != ENV_RUNNABLE && status != ENV_NOT_RUNNABLE)
 		return -E_INVAL;
@@ -149,10 +155,7 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 {
 	// LAB 4:
 /*	struct Env* env;
-	int errno;	
-	errno = envid2env(envid, &env, 1);
-	if (errno < 0)
-		return errno;
+	ENVID2ENV(env);
 	
 	env->env_pgfault_upcall = func
 */	
@@ -185,8 +188,11 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	//   If page_insert() fails, remember to free the page you
 	//   allocated!
 
-	// LAB 4: Your code here.
-	panic("sys_page_alloc not implemented");
+	// LAB 4:
+	struct Env* env;
+	ENVID2ENV(env);
+
+//	panic("sys_page_alloc not implemented");
 }
 
 // Map the page of memory at 'srcva' in srcenvid's address space
