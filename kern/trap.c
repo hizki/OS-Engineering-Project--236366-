@@ -282,7 +282,44 @@ page_fault_handler(struct Trapframe *tf)
 	//   To change what the user environment runs, modify 'curenv->env_tf'
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
-	// LAB 4: Your code here.
+	// LAB 4:
+	if (curenv->env_pgfault_upcall) {
+		user_mem_assert(curenv, (void*)(UXSTACKTOP - 4), 4, 0);
+		struct UTrapframe utf;
+		utf.utf_fault_va = fault_va;
+		utf.utf_err = tf->tf_err;
+		utf.utf_regs = tf->tf_regs;
+		utf.utf_eip = tf->tf_eip;
+		utf.utf_eflags = tf->tf_eflags;
+		utf.utf_esp = tf->tf_esp;
+
+		// Where to put the exception stack?
+		// If already running of exception stack:
+		if (tf->tf_esp <= UXSTACKTOP-1 && tf->tf_esp >= UXSTACKTOP-PGSIZE)
+			tf->tf_esp -= 4;
+		// Else, set to the top of the stack:		
+		else
+			tf->tf_esp = UXSTACKTOP;
+		
+		tf->tf_esp -= sizeof(struct UTrapframe);		
+		
+		// Check that the exception didn't over flow:
+		if (tf->tf_esp < UXSTACKTOP-PGSIZE) {
+			cprintf("[%08x] user exception stack overflowed: va %08x ip %08x esp %08x\n",
+				curenv->env_id, fault_va, tf->tf_eip, tf->tf_esp);
+			print_trapframe(tf);
+			env_destroy(curenv);
+			return;
+		}
+
+		// Put the UTrapframe in the right place.
+		*(struct UTrapframe *) tf->tf_esp = utf;
+		
+
+		tf->tf_eip = (uint32_t) curenv->env_pgfault_upcall;
+		env_run(curenv);
+		panic("Dosen't suppose to reach here");
+	}
 
 	// Destroy the environment that caused the fault.
 	cprintf("[%08x] user fault va %08x ip %08x\n",

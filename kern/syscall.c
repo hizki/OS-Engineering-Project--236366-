@@ -152,7 +152,7 @@ static int
 sys_env_set_pgfault_upcall(envid_t envid, void *func)
 {
 	// LAB 4:
-/*	struct Env* env;
+	struct Env* env;
 	int errno;
 	errno = envid2env(envid, &env, 1);
 	if (errno < 0) {
@@ -162,11 +162,9 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func)
 			panic("unexpected error %d", errno);	
 	}
 	
-	env->env_pgfault_upcall = func
+	env->env_pgfault_upcall = func;
 
 	return 0;
-*/	
-	panic("sys_env_set_pgfault_upcall not implemented");
 }
 
 // Allocate a page of memory and map it at 'va' with permission
@@ -423,22 +421,38 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		sys_cputs((char *) a1, (size_t) a2);
 		return 0;
 	case SYS_cgetc:
-		ret = (int32_t) sys_cgetc();
-		return ret;
+		return (int32_t) sys_cgetc();
 	case SYS_getenvid:
-		ret = (int32_t) sys_getenvid();
-		return ret;
+		return (int32_t) sys_getenvid();
 	case SYS_env_destroy:
-		ret = (int32_t) sys_env_destroy((envid_t) a1);
-		return ret;
+		return (int32_t) sys_env_destroy((envid_t) a1);
 
 	// LAB 4:
 	case SYS_yield:
 		sys_yield();
 		return 0;
 
+	case SYS_page_alloc:
+		return (int32_t) sys_page_alloc((envid_t) a1, (void*) a2, (int) a3);
+
+	case SYS_page_map:
+		return (int32_t) sys_page_map((envid_t) a1, (void*) a2,
+	     		(envid_t) a3, (void*) a4, (int) a5);
+
+	case SYS_page_unmap:
+		return (int32_t) sys_page_unmap((envid_t) a1, (void*) a2);
+
+	case SYS_exofork:
+		return (int32_t) sys_exofork();
+
+	case SYS_env_set_status:
+		return (int32_t) sys_env_set_status((envid_t) a1, (int) a2);
+
+	case SYS_env_set_pgfault_upcall:
+		return sys_env_set_pgfault_upcall((envid_t) a1, (void*) a2);
+
 	default:
-		panic("syscall %d not implemented", syscallno);
+		//panic("syscall %d not implemented", syscallno);
 		return -E_INVAL;
 	}
 
