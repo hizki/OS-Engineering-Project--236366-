@@ -295,7 +295,7 @@ page_fault_handler(struct Trapframe *tf)
 
 		// Where to put the exception stack?
 		// If already running of exception stack:
-		if (tf->tf_esp =< UXSTACKTOP-1 && tf->tf_esp >= UXSTACKTOP-PGSIZE)
+		if (tf->tf_esp <= UXSTACKTOP-1 && tf->tf_esp >= UXSTACKTOP-PGSIZE)
 			tf->tf_esp -= 4;
 		// Else, set to the top of the stack:		
 		else
