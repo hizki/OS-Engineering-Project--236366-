@@ -21,8 +21,8 @@ sys_cputs(const char *s, size_t len)
 	// Check that the user has permission to read memory [s, s+len).
 	// Destroy the environment if not.
 	
-	// LAB 3: 
-	user_mem_assert(curenv, s, len, 0);
+	// LAB 3: Your code here.
+	user_mem_assert(curenv, s, len, PTE_U | PTE_P);
 
 	// Print the string supplied by the user.
 	cprintf("%.*s", len, s);
@@ -120,7 +120,7 @@ sys_env_set_status(envid_t envid, int status)
 	// check whether the current environment has permission to set
 	// envid's status.
 
-	// LAB 4: 
+	// LAB 4:
 	// TODO IMPROV: changing the order of checks might improve performance.
 	struct Env* env;
 	int errno;
@@ -260,10 +260,17 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	//   Use the third argument to page_lookup() to
 	//   check the current permissions on the page.
 
-	// LAB 4:
+	// LAB 4: Your code here.
 	struct Env* srcenv;
 	struct Env* dstenv;
-	int errno;				
+	struct Page* srcpage;
+	pte_t* srcpte;
+	int errno;
+
+	if ((uint32_t)srcva >= UTOP || (uint32_t)srcva % PGSIZE != 0 ||
+			(uint32_t)dstva >= UTOP || (uint32_t)dstva % PGSIZE != 0)
+		return -E_INVAL;
+
 	errno = envid2env(srcenvid, &srcenv, 1);	
 	if (errno < 0) {
 		if (errno == -E_BAD_ENV)
@@ -279,21 +286,16 @@ sys_page_map(envid_t srcenvid, void *srcva,
 		else
 			panic("unexpected error %d", errno);	
 	}
-
-	if ((uintptr_t)srcva >= UTOP || (uint32_t)srcva % PGSIZE != 0 ||
-			(uintptr_t)dstva >= UTOP || (uint32_t)dstva % PGSIZE != 0)
-		return -E_INVAL;
-
-	// TODO: More permission checks needed?
-	if ((perm | PTE_U | PTE_P) != perm)
-		return -E_INVAL;
-
-
+	
 	struct Page* pp;
 	pte_t * pte_ptr;
 	pp = page_lookup(srcenv->env_pgdir, srcva, &pte_ptr);
+	
+	// TODO: Review permissions
+	if (!((PTE_U & perm) && (PTE_P & perm) && !((!PTE_USER) & perm)))
+		return -E_INVAL;
 
-	if (pp == 0 || (perm | PTE_W) != perm || (*pte_ptr | PTE_W) != *pte_ptr)
+	if ((perm & PTE_W) && (!(*pte_ptr & PTE_W)))
 		return -E_INVAL;
 
 	errno = page_insert(dstenv->env_pgdir, pp, dstva, perm);
@@ -307,7 +309,6 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	}
 
 	return 0;
-	
 }
 
 // Unmap the page of memory at 'va' in the address space of 'envid'.
