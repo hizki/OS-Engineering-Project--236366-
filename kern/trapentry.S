@@ -3,7 +3,6 @@
 #include <inc/mmu.h>
 #include <inc/memlayout.h>
 #include <inc/trap.h>
-
 #include <kern/picirq.h>
 
 
@@ -20,7 +19,7 @@
 	.type name, @function;	/* symbol type is function */		\
 	.align 2;		/* align function definition */		\
 	name:			/* function starts here */		\
-	cli;		/* add to solve user primes problem */ \
+	cli;								\
 	pushl $(num);							\
 	jmp _alltraps
 
@@ -33,7 +32,7 @@
 	.type name, @function;						\
 	.align 2;							\
 	name:								\
-	cli;		/* add to solve user primes problem */	\
+	cli;								\
 	pushl $0;							\
 	pushl $(num);							\
 	jmp _alltraps
@@ -41,7 +40,7 @@
 .text
 
 /*
- * Lab 3: Your code here for generating entry points for the different traps.
+ * Lab 3:
  */
 
 // IDT entry part
@@ -60,7 +59,7 @@
 	TRAPHANDLER(trap_stack, T_STACK);
 	TRAPHANDLER(trap_gpflt, T_GPFLT);
 	TRAPHANDLER(trap_pgflt, T_PGFLT);
-	//TRAPHANDLER_NOEC(trap_res, T_PGFLT);   //Reserved in inc/trap.h, so skip it in kern/trap.c
+	//TRAPHANDLER_NOEC(trap_res, T_PGFLT);	//Reserved in inc/trap.h, so skip it in kern/trap.c
 	TRAPHANDLER_NOEC(trap_fperr, T_FPERR);
 	TRAPHANDLER_NOEC(trap_align, T_ALIGN);
 	TRAPHANDLER_NOEC(trap_mchk, T_MCHK);
@@ -68,7 +67,10 @@
 
 	TRAPHANDLER_NOEC(trap_syscall, T_SYSCALL);
 
-//IRQ handlers blow
+/*
+ * Lab 4:
+ */
+//IRQ handlers
 	TRAPHANDLER_NOEC(irq0_handler ,IRQ_OFFSET);
 	TRAPHANDLER_NOEC(irq1_handler ,IRQ_OFFSET+1);
 	TRAPHANDLER_NOEC(irq2_handler ,IRQ_OFFSET+2);
@@ -86,17 +88,17 @@
 	TRAPHANDLER_NOEC(irq14_handler,IRQ_OFFSET+14);
 	TRAPHANDLER_NOEC(irq15_handler,IRQ_OFFSET+15);
 
-/* 
- * Lab 3: Your code here for _alltraps
+/*
+ * Lab 3:
  */
 _alltraps:
-	//Push values to make the stack look like a struct Trapframe
+	// Push values to make the stack look like a struct Trapframe
 	pushl %ds;
 	pushl %es;
 	pushal;
-	//Important while timer IRQ is enabled
+	//cli;
 
-	//Load GD_KD into %ds and %es
+	// Load GD_KD into %ds and %es
 	movw $GD_KD, %ax;
 	movw %ax, %ds;
 	movw %ax, %es;
@@ -104,7 +106,6 @@ _alltraps:
 	//pushl %esp to pass a pointer to the Trapframe as an argument to trap()
 	pushl %esp;
 
-	//call trap
 	call trap;
 
 	//pop the values pushed in step 1-3
@@ -112,6 +113,5 @@ _alltraps:
 	popl %es;
 	popl %ds;
 
-	//iret
 	iret
 	

@@ -18,7 +18,6 @@ void
 i386_init(void)
 {
 	extern char edata[], end[];
-	int i;
 
 	// Before doing anything else, complete the ELF loading process.
 	// Clear the uninitialized global data (BSS) section of our program.
@@ -28,6 +27,10 @@ i386_init(void)
 	// Initialize the console.
 	// Can't call cprintf until after we do this!
 	cons_init();
+
+	cprintf("%x\n\n", 0xefc00000 + (((0xefc00000) >> (10)) & ~(-1 << (32 - (10)))) );
+
+	cprintf("6828 decimal is %o octal!\n", 6828);
 
 	// Lab 2 memory management initialization functions
 	i386_detect_memory();
@@ -44,28 +47,23 @@ i386_init(void)
 	// Should always have an idle process as first one.
 	ENV_CREATE(user_idle);
 
-//	ENV_CREATE(user_yield);
-//	ENV_CREATE(user_yield);
-//	ENV_CREATE(user_yield);
-
 #if defined(TEST)
 	// Don't touch -- used by grading script!
 	ENV_CREATE2(TEST, TESTSIZE)
 #else
 	// Touch all you want.
-	ENV_CREATE(user_primes);
+	ENV_CREATE(user_yield);
+	ENV_CREATE(user_yield);
+	ENV_CREATE(user_yield);
 #endif // TEST*
 
-//<<<<<<< HEAD
+
 	// Schedule and run the first user environment!
 	sched_yield();
-	
-//=======
-	// We only have one user environment for now, so just run it.
-	env_run(&envs[0]);
-//>>>>>>> lab3
 
-
+	// Drop into the kernel monitor.
+	while (1)
+		monitor(NULL);
 }
 
 

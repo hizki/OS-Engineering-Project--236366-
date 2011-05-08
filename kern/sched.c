@@ -18,30 +18,21 @@ sched_yield(void)
 	// But never choose envs[0], the idle environment,
 	// unless NOTHING else is runnable.
 
-	// LAB 4: Your code here.
-	uint32_t curenv_index, i;
-	if (!curenv)
-		curenv_index = 0;
-	else
-		curenv_index = ENVX(curenv->env_id);
-	i = (curenv_index + 1) % NENV;
-	
-	do {
-		if (i != 0 && envs[i].env_status == ENV_RUNNABLE) {
-			cprintf("(sched) next envid = %d\n", i);
-			env_run(&envs[i]);
-			return;
+	// LAB 4:
+	static int prev_env = 0;
+	int i;
+	int new_env = 0;
+	for (i = 1; i <= NENV; i++) {
+		new_env = (prev_env + i) % NENV;
+		if (new_env != 0 && envs[new_env].env_status == ENV_RUNNABLE) {
+			prev_env = new_env;			
+			env_run(&envs[new_env]);
 		}
-		
-		i = (i + 1) % NENV;
-	} while(i != ((curenv_index + 1) % NENV));
-	// reason behind do-while: want to allow the same proc to be scheduled
+	}
 
 	// Run the special idle environment when nothing else is runnable.
-	if (envs[0].env_status == ENV_RUNNABLE) {
-		cprintf("(sched) next envid = 0\n");
+	if (envs[0].env_status == ENV_RUNNABLE)
 		env_run(&envs[0]);
-	}
 	else {
 		cprintf("Destroyed all environments - nothing more to do!\n");
 		while (1)

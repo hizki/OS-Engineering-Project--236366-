@@ -1,4 +1,3 @@
-
 // Simple implementation of cprintf console output for the kernel,
 // based on printfmt() and the kernel console's cputchar().
 
