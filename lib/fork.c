@@ -56,7 +56,7 @@ pgfault(struct UTrapframe *utf)
 	// unmap the temporary page.
 	errno = r=sys_page_unmap(0, PFTEMP);
 	if (errno < 0)
-		panic("pgfault: page umap %e", errno);
+		panic("pgfault: page unmap %e", errno);
 
 }
 
@@ -76,9 +76,21 @@ duppage(envid_t envid, unsigned pn)
 {
 	int r;
 
-	// LAB 4: Your code here.
+	// LAB 4:
+	// Remember: The PTE for page number N is stored in vpt[N].
+	pte_t pte = vpt[pn];
+	void *addr = (void *) (pn << PGSHIFT);
+
+	int errno;
+	if ((pte | PTE_W == pte) || (pte | PTE_COW == pte)) {
+		errno = sys_page_map(0, addr, envid, addr, PTE_U|PTE_P|PTE_COW);
+		if (errno < 0)
+			return errno;
+		errno = sys_page_map(0, addr, 0, addr, PTE_U|PTE_P|PTE_COW);
+		if (errno < 0)
+			return errno;
+	}
 	
-//	panic("duppage not implemented");
 	return 0;
 }
 
