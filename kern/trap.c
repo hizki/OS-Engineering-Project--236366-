@@ -284,6 +284,7 @@ page_fault_handler(struct Trapframe *tf)
 
 	// LAB 4:
 	if (curenv->env_pgfault_upcall) {
+		user_mem_assert(curenv, curenv->env_pgfault_upcall, 4, PTE_U | PTE_P);
 		user_mem_assert(curenv, (void*)(UXSTACKTOP - 4), 4, 0);
 		struct UTrapframe utf;
 		utf.utf_fault_va = fault_va;
