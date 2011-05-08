@@ -10,14 +10,18 @@ struct Trapframe;
 // optionally providing a trap frame indicating the current state
 // (NULL if none).
 void monitor(struct Trapframe *tf);
+void monitor_debug(struct Trapframe *tf);
 
 // Functions implementing monitor commands.
 int mon_help(int argc, char **argv, struct Trapframe *tf);
 int mon_kerninfo(int argc, char **argv, struct Trapframe *tf);
 int mon_backtrace(int argc, char **argv, struct Trapframe *tf);
-int show_mapping(int argc, char **argv, struct Trapframe *tf);
-int dump(int argc, char **argv, struct Trapframe *tf);
-int set_pagepriority(int argc, char **argv, struct Trapframe *tf);
-int step(int argc, char **argv, struct Trapframe *tf);
-int cont(int argc, char **argv, struct Trapframe *tf);
+int mon_showmappings(int argc, char **argv, struct Trapframe *tf);
+int mon_setmappingperm(int argc, char **argv, struct Trapframe *tf);
+int mon_dumpva(int argc, char **argv, struct Trapframe *tf);
+int mon_dumpph(int argc, char **argv, struct Trapframe *tf);
+
+int mon_next(int argc, char **argv, struct Trapframe *tf);
+int mon_stop_dbg(int argc, char **argv, struct Trapframe *tf);
+
 #endif	// !JOS_KERN_MONITOR_H

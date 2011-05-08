@@ -28,24 +28,40 @@ trap
 ===   which the virtual address maps. Why can the pointer e be
 ===   dereferenced both before and after the addressing switch?
 ===   (one sentence, free form)
+The variable e, which is on the kstack, remains unchaned becuase we don't change
+the kstack when we load cr3.
 
 === Q In Ex. 4, what happens if the user environment runs out of
 ===   space on the exception stack?
 ===   (one setence, free form)
+If not handled, when the user environment runs out of space on the exception
+stack it overflows causing a panic. In my implementation I check for that
+scenario.
 
 === Q In dumpfork.c, the first time you call duppage(), the function
 ===   allocates a page in one environment (env A) and then maps it in
 ===   another (env B). At whataddress is the page mapped in env A, and
 ===   at what address is it mapped in env B?
 ===   (ADDR(in env A):ADDR(in env B) (example: 0xAAAAAAAA:0xBBBBBBBB)
+0x00800000:0x00001000
 
 ====================================================================
 === Q What challenge(s) have you chosen to implement? (specify
 ===   challenge numbers separated by spaces, if more than one)
+5
 
 === Q If the challenge requires changing the kernel source, list the
 ===   files which you have changed/added during implementation.
 ===   (one file per line, relative to lab directory containing .git/)
+lib/fork.c
 
 === Q Describe you solution.
 ===   (free form, up to 500 words, don't need to use all 500!)
+To implement sfork I copied all the pages of the father process to the child,
+as we would in the normal fork, only this time I map the new pages to the
+same VAs as the father, that way both processes read and write to the same
+address space.
+I assumed that only memory which the process uses for "data" is to be shared,
+specificly not the process' stacks.
+Both the regular stack and the exception stack where copied as they would in
+the normal fork, using duppage.

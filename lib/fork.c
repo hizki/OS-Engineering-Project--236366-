@@ -178,6 +178,61 @@ fork(void)
 int
 sfork(void)
 {
-	panic("sfork not implemented");
-	return -E_INVAL;
+	set_pgfault_handler(pgfault);
+
+	envid_t childid;
+
+	if ((childid = sys_exofork()) < 0)
+		return childid;
+	if (childid == 0) {
+		env = &envs[ENVX(sys_getenvid())];
+		return 0;
+	}
+
+	int errno;
+	int pdex, ptex;
+	uint32_t pn = -1;
+	for (pdex = 0; pdex < VPD(UTOP); pdex++) {
+		if (vpd[pdex] != 0)
+			for (ptex = 0; ptex < NPTENTRIES; ptex++) {
+				pn++;
+				pte_t pte;
+				pte = vpt[pn];
+				if ((pn * PGSIZE) == (UXSTACKTOP - PGSIZE) || 
+						pte == 0)
+					continue;
+
+				if ((pn * PGSIZE) == (USTACKTOP - PGSIZE)) {
+					errno = duppage(childid, pn);
+					if (errno < 0)
+						panic("duppage: %e", errno);
+					continue;
+				}
+
+				void *addr;
+				addr = (void *) (pn * PGSIZE);
+
+				int perm;
+				perm = (pte & 0xFFF) & ~(PTE_A | PTE_D);
+
+				errno = sys_page_map(0, addr, childid, addr, perm);
+				if (errno < 0)
+					panic("sys_page_map: %e", errno);
+			}
+		else
+			pn += NPTENTRIES;
+	}
+	
+	errno = sys_page_alloc(childid, (void *) (UXSTACKTOP - PGSIZE), 
+		PTE_P|PTE_U|PTE_W);
+	if (errno < 0)
+		panic("sys_page_alloc: e%", errno);
+	
+	sys_env_set_pgfault_upcall(childid, env->env_pgfault_upcall);
+	
+	errno = sys_env_set_status(childid, ENV_RUNNABLE);
+	if (errno < 0)
+		panic("sys_env_set_status: %e", errno);
+	
+	return childid;
 }

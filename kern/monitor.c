@@ -11,14 +11,12 @@
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
 #include <kern/trap.h>
+
 #include <kern/pmap.h>
 
-#define CMDBUF_SIZE	80	// enough for one VGA text line
+#include <kern/env.h>
 
-// Challege 2:
-#define CHECKERR(a)	{if(a)	goto ERR;}
-#define LERR		ERR:{cprintf("Wrong parameters!\n");return 0;}
-// -----------
+#define CMDBUF_SIZE	80	// enough for one VGA text line
 
 struct Command {
 	const char *name;
@@ -30,19 +28,14 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
-	{ "backtrace", "Display a backtrack of the stack", mon_backtrace },
-	{ "showmappings", "Display in a all of the physical page mappings that\n \
-		apply to a particular range of virtual/linear addresses in the\n \
-		currently active address space.", show_mapping },
-	{ "dump", "Dump the contents of a range of memory given either a\n \
-		 virtual or physical address range. ", dump },
-	{ "priority", "Explicitly set, clear, or change the permissions of\n \
-		any mapping in the current address space. \n \
-		you can add (+) or remove (-) the flags p, u and w", set_pagepriority },
-	{ "s", "Debugger step.", step},
-	{ "c", "Debugge continue", cont}
+	{ "backtrace", "Display a list of function call frames", mon_backtrace },
+	{ "showmappings", "Display the physical page mappings and permission bits", mon_showmappings },
+	{ "setmappingperm", "Explicitly set, clear, or change the permissions of any mapping", mon_setmappingperm }, 
+	{ "dumpva", "Dump memory residing in between two VAs", mon_dumpva },
+	{ "dumpph", "Dump memory residing in between two PAs", mon_dumpph },
+	{ "next", "(debug) next instruction", mon_next },
+	{ "cont", "(debug) continue exection", mon_stop_dbg }
 };
-
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
 unsigned read_eip();
@@ -77,26 +70,168 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
-	unsigned int* ebp = (unsigned int*)read_ebp();
-	unsigned int eip;
-	struct Eipdebuginfo info;
+	uintptr_t ebp = read_ebp();
+	uintptr_t* ptr = (uintptr_t*)ebp;
+	struct Eipdebuginfo dbginfo;
+	
+	// ebp's 1st value is 0
 	while (ebp != 0) {
-		eip = *(ebp+1);
-
-		cprintf("ebp %08x  eip %08x  args %08x %08x %08x %08x %08x\n", 
-			ebp, eip, *(ebp+2), *(ebp+3), *(ebp+4), *(ebp+5), *(ebp+6));
-		debuginfo_eip(eip, &info);
-		cprintf("\t%s:%d: %.*s+%d\n", 
-			info.eip_file, info.eip_line, info.eip_fn_namelen, 
-			info.eip_fn_name, eip-info.eip_fn_addr);				
-		ebp = (unsigned int*)*ebp;
+		cprintf("ebp %08x eip %08x args %08x %08x %08x %08x %08x\n",
+			ebp, *(ptr + 1),
+			*(ptr + 2), *(ptr + 3), *(ptr + 4),
+			*(ptr + 5), *(ptr + 6));
+		debuginfo_eip( *(ptr + 1), &dbginfo );
+		cprintf("\t%s:%d: %.*s+%d\n",
+			dbginfo.eip_file,
+			dbginfo.eip_line,
+			dbginfo.eip_fn_namelen, dbginfo.eip_fn_name,
+			*(ptr + 1) - dbginfo.eip_fn_addr);
 		
+		ebp = *ptr;
+		ptr = (uintptr_t*)ebp;
 	}
+	
+	return 0;
+
+}
+
+static uint32_t
+str2addr(char *str)
+{
+	uint32_t addr = 0;
+	int i, digit;
+	// we only accept hex from form: 0x...
+	if ((*str != '\0' && *(str+1) != '\0') && (*str != '0' || *(str + 1) != 'x'))
+		return -1;
+	
+	for (i = 2; *(str+i) != '\0'; ++i) {
+		if (*(str+i) >= 97 && *(str+i) <= 102)
+			digit = *(str+i) - 97 + 10;
+		else if (*(str+i) >= 48 && *(str+i) <= 57)
+			digit = *(str+i) - 48;
+		else
+			return -1;
+		addr = addr * 16 + digit;
+	}
+	
+	return addr;
+}
+
+int
+mon_showmappings(int argc, char **argv, struct Trapframe *tf)
+{
+	uint32_t i;
+	uintptr_t low, high;
+	uint32_t *pgdir;
+	pde_t pde;
+	pte_t pte;
+	
+	if (argc != 3)
+		return -1;
+	low = str2addr(argv[1]);
+	high = str2addr(argv[2]);
+	if ((!(low <= high)) || low < PGSIZE || high < PGSIZE)
+		return -1;
+	pgdir = (uint32_t*) KADDR(rcr3());
+
+	cprintf("\t\tMAPPED TO\t\tPERMISSION BIT\n");
+	cprintf("----------------------------------------------------------------------\n");
+	
+	for (i = low; i <= high; i += PGSIZE) {
+		cprintf("0x%x:", i & 0xfffff000);
+		pde = pgdir[PDX(i)];
+		if (pde & PTE_P) {
+			pte = ((pte_t*) KADDR(PTE_ADDR(pde)))[PTX(i)];
+
+			cprintf("\t0x%x", PTE_ADDR(pte));
+			cprintf("\t\tPTE_P = %d\n", (pte & PTE_P) ? 1 : 0);
+			cprintf("\t\t\t\t\tPTE_W = %d\n", (pte & PTE_W) ? 1 : 0);
+			cprintf("\t\t\t\t\tPTE_U = %d\n", (pte & PTE_U) ? 1 : 0);
+			cprintf("\t\t\t\t\tPTE_PWT = %d\n", (pte & PTE_PWT) ? 1 : 0);
+			cprintf("\t\t\t\t\tPTE_PCD = %d\n", (pte & PTE_PCD) ? 1 : 0);
+			cprintf("\t\t\t\t\tPTE_A = %d\n", (pte & PTE_A) ? 1 : 0);
+			cprintf("\t\t\t\t\tPTE_D = %d\n", (pte & PTE_D) ? 1 : 0);
+			cprintf("\t\t\t\t\tPTE_PS = %d\n", (pte & PTE_PS) ? 1 : 0);
+			cprintf("\t\t\t\t\tPTE_MBZ = %d (Must Be Zero)\n", (pte & PTE_MBZ));
+		}
+		else
+			cprintf("\tnot present\n");
+		
+		cprintf("......................................................\n");
+	}
+	
+	return 0;
+}
+
+int
+mon_setmappingperm(int argc, char **argv, struct Trapframe *tf)
+{
+	uint32_t *pgdir;
+	uint32_t perm;
+	uint32_t addr;
+	pde_t pde;
+	pte_t *ptep;
+	
+	if (argc != 3)
+		return -1;
+	pgdir = (uint32_t*) KADDR(rcr3());
+	perm = str2addr(argv[2]) & 0x00000fff;
+	addr = str2addr(argv[1]);
+	pde = pgdir[PDX(addr)];
+
+	cprintf("addr = %x\n", addr);
+	cprintf("perm = %x\n", perm);
+	
+	
+	if (pde & PTE_P) {
+		ptep = &((pte_t*) KADDR(PTE_ADDR(pde)))[PTX(addr)];
+		cprintf ("pte = %x\n", *ptep);
+		*ptep = PTE_ADDR(*ptep) | perm;
+		cprintf ("pte = %x\n", *ptep);
+	}
+	else
+		cprintf("There is no mapping for 0x%x\n", addr);
 
 	return 0;
 }
 
+int
+mon_dumpva(int argc, char **argv, struct Trapframe *tf)
+{
+	/* uint32_t *pgdir; */
+	/* uint32_t perm; */
+	/* uint32_t addr; */
+	/* pde_t pde; */
+	/* pte_t *ptep; */
 
+	/* if (argcPPPP */
+	
+	/* pgdir = (uint32_t*) KADDR(rcr3()); */
+	cprintf("TODO\n");
+	
+	return 0;
+}
+
+int
+mon_dumpph(int argc, char **argv, struct Trapframe *tf)
+{
+	cprintf("TODO\n");
+	return 0;
+}
+
+int
+mon_next(int argc, char **argv, struct Trapframe *tf)
+{
+	tf->tf_eflags |= FL_TF;
+	return -1; // exit monitor
+}
+
+int
+mon_stop_dbg(int argc, char **argv, struct Trapframe *tf)
+{
+	tf->tf_eflags &= ~FL_TF;
+	return -1; // exit monitor
+}
 
 /***** Kernel monitor command interpreter *****/
 
@@ -161,6 +296,20 @@ monitor(struct Trapframe *tf)
 	}
 }
 
+void
+monitor_debug(struct Trapframe *tf)
+{
+	char *buf;
+	cprintf("current eip: %x\n", tf->tf_eip);
+	
+	while (1) {
+		buf = readline("DEBUG (next/cont) >> ");
+		if (buf != NULL)
+			if (runcmd(buf, tf) < 0)
+				break;
+	}
+}
+
 // return EIP of caller.
 // does not work if inlined.
 // putting at the end of the file seems to prevent inlining.
@@ -171,233 +320,3 @@ read_eip()
 	__asm __volatile("movl 4(%%ebp), %0" : "=r" (callerpc));
 	return callerpc;
 }
-
-
-// =====================
-// Exercise 2 Challege 2:
-
-int
-show_mapping(int argc, char **argv, struct Trapframe *tf)
-{
-	uint32_t start ,end;
-	char *nextcharb, *nextchare;
-
-	// input: showmappings addr
-	if (argc == 2)
-	{	
-		start = ROUNDDOWN((uint32_t)strtol(argv[1], &nextcharb, 0), 
-			PGSIZE);
-		end = start + PGSIZE;
-		CHECKERR(*nextcharb != '\0');
-	}
-
-	// input: showmappings baddr eaddr 
-	else if (argc == 3) 
-	{
-		start = ROUNDDOWN((uint32_t)strtol(argv[1], &nextcharb, 0), 
-			PGSIZE);
-		end = ROUNDUP((uint32_t)strtol(argv[2], &nextchare, 0), 
-			PGSIZE);
-		CHECKERR ( *nextcharb != '\0' || *nextchare != '\0');
-	}
-	else
-	{	
-		goto ERR;
-	}
-	cprintf("\tVirtual\tPhysical\tPriority\tRefer\n");
-	for (; start!=end; start += PGSIZE)
-	{
-		struct Page *pp;
-		pte_t *ppte;
-		char buf[13];
-		pp = page_lookup(PGADDR(PDX(VPT),PDX(VPT),0), (void *)start, 
-			&ppte);
-		if (pp == NULL || *ppte ==0)
-			cprintf("\t%08x\t%s\t%s\t\t%d\n", start, "Not mapping", 
-				"None", 0);
-		else
-			cprintf("\t%08x\t%08x\t%s\t%d\n", start, page2pa(pp),
-				pagepri2str(*ppte, buf), pp->pp_ref );
-	}
-	
-	return 0;	 
-ERR:
-	cprintf("Wrong parameters!\n");
-	return 0; 
-}
-
-int
-set_pagepriority(int argc, char **argv, struct Trapframe *tf)
-{
-	uint32_t pte ;
-	uint32_t start;
-	pte_t * ppte;
-	struct Page *pp;
-	char *nextchar;
-	char buf_old[13],buf_new[13];
-	CHECKERR(argc < 3);
-	start = ROUNDDOWN((uint32_t)strtol(argv[1], &nextchar, 0), PGSIZE);
-	CHECKERR (*nextchar != '\0');
-	pp = page_lookup(PGADDR(PDX(VPT),PDX(VPT),0), (void *)start, &ppte);
-	
-	if (pp == NULL || *ppte == 0)
-	{	
-		cprintf("\tVirtual\tPhysical\tPrev Priority\tNew Priority\tRefer\n");
-		cprintf("\t%08x\t%s\t%s\t\t%s\t\t%d\n",start, "No mapping", 
-			"None", "None", 0);
-		return 0;
-	}
-	pte = *ppte;
-	
-	int i;
-
-	for (i = 2; i < argc; i++)
-	{
-		if ((*argv[i] != '+') && (*argv[i] != '-'))
-			goto ERR;
-	}
-
-	for (i = 2; i < argc; i++)
-	{
-		if (*argv[i] == '+')
-		{
-			*ppte |= str2pagepri(argv[i]+1);
-		}
-		else if (*argv[i] == '-')
-		{
-			*ppte &= ~str2pagepri(argv[i]+1);
-		}
-	}
-	
-	cprintf("\tVirtual\tPhysical\tPrev Priority\tNew Priority\tRefer\n");
-	cprintf("\t%08x\t%08x\t%s\t%s\t%d\n", start,  page2pa(pp),  
-		pagepri2str(pte,buf_old), pagepri2str(*ppte, buf_new), pp->pp_ref);
-	return 0;
-ERR:
-	cprintf("Wrong parameters!\n");
-	return 0;
-}
-
-int
-dump(int argc, char **argv, struct Trapframe *tf)
-{
-	int flag = 0;
-	uint32_t start,end;
-	char *nextcharb, *nextchare;
-	CHECKERR (argc !=2 && argc != 3 && argc !=4);
-
-	// input: dump addr (Virtual Address)
-	if (argc == 2) 
-	{
-		start = strtol(argv[1], &nextcharb, 0);
-		end = start + 16;
-		CHECKERR(*nextcharb != '\0');
-	}
-	else if (argc == 3)
-	{
-		if (*argv[1]== '-')
-		{
-			// input: dump -p addr (Physical Address)
-			if (argv[1][1] == 'p') 
-				flag = 1;
-
-			//input: dump -v addr (Virtual Address)
-			else CHECKERR (argv[1][1] != 'v');
-			start = strtol(argv[2], &nextcharb, 0); 
-			end = start +16;
-			CHECKERR(*nextcharb!='\0');
-		}
-		else
-		{	
-			// input: dump xxxx xxxx
-			start = strtol(argv[1], &nextcharb, 0);
-			end = strtol(argv[2], &nextchare, 0);
-			CHECKERR (*nextcharb != '\0' || *nextchare != '\0');
-		}
-	}
-	else
-	{
-		// input: dump -p baddr eaddr (Physical Address)
-		if (strcmp(argv[1],"-p") == 0) 
-			flag = 1;
-		
-		//input: dump -v baddr eaddr (Virtual Address)
-		else CHECKERR (strcmp(argv[1], "-v") !=0 ); 
-		start = strtol(argv[2], &nextcharb, 0);
-		end = strtol(argv[3], &nextchare, 0);
-		CHECKERR (*nextcharb != '\0' || *nextchare != '\0');
-	}
-
-	// Process physical memory
-	if (flag)
-	{	
-		static physaddr_t maxpa;
-		i386_detect_memory();
-		if (start > maxpa || end > maxpa)
-		{
-			cprintf("Address is larger than max physical memory\n");
-			return 0;
-		}
-		start = (uint32_t)KADDR(start);
-		end = (uint32_t)KADDR(end);
-	}
-	
-	while (start < end)
-	{
-		int i;
-		pte_t *ppte;
-		cprintf("%08x ",start);
-		if (page_lookup(PGADDR(PDX(VPT),PDX(VPT),0), (void*)start, &ppte) == NULL 
-			|| *ppte == 0)
-		{
-			cprintf("No mapping\n");
-			start += PGSIZE - start%PGSIZE;
-			continue;
-		}
-		cprintf("%08x\t", PTE_ADDR(*ppte)|PGOFF(start));
-		for (i=0; i < 16 ; i++, start ++)
-		{
-			cprintf("%02x ",*(unsigned char *)start);
-		}
-		cprintf("\n");
-	}
-	return 0;
-ERR:
-	cprintf("Wrong parameters!\n");
-	return 0;
-}
-
-// ---------------------
-
-// =====================
-// Exercise 3 Challege 2:
-
-int step(int argc, char **argv, struct Trapframe *tf)
-{
-	char *endptr;	
-	if (tf == NULL)
-		return 0;
-
-	if (argc == 1)
-	{
-		tf->tf_eflags |= 0x100;
-	}
-	else goto ERR;
-
-	return -1;
-
-ERR:
-	cprintf("Wrong parameters!\n");
-	return 0;
-}
-
-int cont(int argc, char **argv, struct Trapframe *tf)
-{
-	if (tf == NULL )
-		return 0;
-	tf->tf_eflags &= ~0x100;
-	return -1;
-}
-
-// ---------------------
-
