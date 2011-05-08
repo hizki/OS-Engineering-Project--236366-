@@ -82,7 +82,7 @@ duppage(envid_t envid, unsigned pn)
 	void *addr = (void *) (pn << PGSHIFT);
 
 	int errno;
-	if ((pte | PTE_W == pte) || (pte | PTE_COW == pte)) {
+	if ((pte | PTE_W) == pte || (pte | PTE_COW) == pte) {
 		errno = sys_page_map(0, addr, envid, addr, PTE_U|PTE_P|PTE_COW);
 		if (errno < 0)
 			return errno;
