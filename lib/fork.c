@@ -114,6 +114,7 @@ envid_t
 fork(void)
 {
 	// LAB 4:
+	extern void _pgfault_upcall(void);
 	envid_t childid;
 	set_pgfault_handler(pgfault);
 
@@ -127,7 +128,7 @@ fork(void)
 		return 0;
 	}
 
-	// TODO: Check for bugs here.
+	// TODO: Check for bugs here:
 	// Copy our address space to the child.
 	uint32_t pdex, ptex, pn;
 	for (pdex = PDX(UTEXT); pdex <= PDX(USTACKTOP); pdex++) {
@@ -136,7 +137,7 @@ fork(void)
 				pn = (pdex << 10) + ptex;
 				if ((pn < VPN(UXSTACKTOP - PGSIZE)) &&
 						(vpt[pn] & PTE_P)) {
-					duppage(newenvid, pn);
+					duppage(childid, pn);
 				}
 			}
 		}
