@@ -113,8 +113,64 @@ duppage(envid_t envid, unsigned pn)
 envid_t
 fork(void)
 {
-	// LAB 4: Your code here.
-	panic("fork not implemented");
+	// LAB 4:
+	envid_t childid;
+	set_pgfault_handler(pgfault);
+
+	if ((childid = sys_exofork()) < 0) 
+		panic("fork: sys_exofork %e", childid);
+
+	if (childid == 0) {
+
+		// Fix env in the child process.
+		env = &envs[ENVX(sys_getenvid())];
+		return 0;
+	}
+
+	// TODO: Check for bugs here.
+	// Copy our address space to the child.
+	uint32_t pdex, ptex, pn;
+	for (pdex = PDX(UTEXT); pdex <= PDX(USTACKTOP); pdex++) {
+		if (vpd[pdex] & (PTE_P)) {
+			for (ptex = 0; ptex < NPTENTRIES; ptex++) {
+				pn = (pdex << 10) + ptex;
+				if ((pn < VPN(UXSTACKTOP - PGSIZE)) &&
+						(vpt[pn] & PTE_P)) {
+					duppage(newenvid, pn);
+				}
+			}
+		}
+	}
+
+	// Allocate a new page for the child's user exception stack and copy
+	// our page fault handler setup to the child.
+	int errno;
+	errno = sys_page_alloc(childid, (void *) (UXSTACKTOP-PGSIZE), 
+			PTE_P|PTE_W|PTE_U);
+	if (errno < 0)
+		return errno;
+
+	errno = sys_page_map(childid, (void *) (UXSTACKTOP-PGSIZE), 0, UTEMP,
+			PTE_P|PTE_U|PTE_W);
+	if (errno < 0)
+		return errno;
+
+	memmove(UTEMP, (void *) (UXSTACKTOP-PGSIZE), PGSIZE);
+	
+	errno = sys_page_unmap(0, UTEMP);
+	if (errno < 0) 
+		return errno;
+
+	errno = sys_env_set_pgfault_upcall(childid, _pgfault_upcall);
+	if (errno < 0)
+		return errno;
+
+	// Mark the child as runnable and return.
+	errno = sys_env_set_status(childid, ENV_RUNNABLE);
+	if (errno < 0)
+		return errno;
+	
+	return childid;
 }
 
 // Challenge!
