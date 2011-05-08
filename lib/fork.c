@@ -24,7 +24,11 @@ pgfault(struct UTrapframe *utf)
 	//   Use the read-only page table mappings at vpt
 	//   (see <inc/memlayout.h>).
 
-	// LAB 4: Your code here.
+	// LAB 4:
+	if (!(err & FEC_WR))
+		panic("pgfault: faulting access not a write");
+	if (!(vpt[VPN(addr)] & PTE_COW))
+		panic("pgfault: faulting access not to a CoW page");
 
 	// Allocate a new page, map it at a temporary location (PFTEMP),
 	// copy the data from the old page to the new page, then move the new
@@ -33,9 +37,27 @@ pgfault(struct UTrapframe *utf)
 	//   You should make three system calls.
 	//   No need to explicitly delete the old page's mapping.
 
-	// LAB 4: Your code here.
+	// LAB 4:
+	// Allocate a new page, map it at a temporary location (PFTEMP)...
+	int errno;
+	errno = r=sys_page_alloc(0, PFTEMP, PTE_W|PTE_U|PTE_P);
+	if (errno < 0)
+		panic("pgfault: page alloc %e", errno);
 
-	panic("pgfault not implemented");
+	// copy the data from the old page to the new page...
+	memmove(PFTEMP, (void *)ROUNDDOWN(addr, PGSIZE), PGSIZE);
+	
+	// then move the new page to the old page's address...
+	errno = r=sys_page_map(0, PFTEMP, 0, (void *)ROUNDDOWN(addr, PGSIZE), 
+		PTE_P|PTE_W|PTE_U);	
+	if(errno < 0)
+		panic("pgfault: page map %e", errno);
+
+	// unmap the temporary page.
+	errno = r=sys_page_unmap(0, PFTEMP);
+	if (errno < 0)
+		panic("pgfault: page umap %e", errno);
+
 }
 
 //
@@ -55,7 +77,8 @@ duppage(envid_t envid, unsigned pn)
 	int r;
 
 	// LAB 4: Your code here.
-	panic("duppage not implemented");
+	
+//	panic("duppage not implemented");
 	return 0;
 }
 
