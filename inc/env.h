@@ -36,7 +36,7 @@ typedef int32_t envid_t;
 #define ENV_NOT_RUNNABLE	2
 
 struct Env {
-	struct Trapframe env_tf;	// Saved registers
+	struct 	Trapframe env_tf;	// Saved registers
 	LIST_ENTRY(Env) env_link;	// Free list link pointers
 	envid_t env_id;			// Unique environment identifier
 	envid_t env_parent_id;		// env_id of this env's parent
